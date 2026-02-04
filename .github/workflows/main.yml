@@ -1,4 +1,4 @@
-name: RICH LINUX (CINNAMON - GPU FREE)
+name: FASTEST RICH DESKTOP (CINNAMON CORE)
 
 on:
   workflow_dispatch:
@@ -9,27 +9,25 @@ jobs:
     timeout-minutes: 360
 
     steps:
-      - name: Install Cloudflared
+      - name: 1. Install Cloudflared (Fastest)
         run: |
           wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -O /tmp/cloudflared
           chmod +x /tmp/cloudflared
           sudo mv /tmp/cloudflared /usr/local/bin/cloudflared
 
-      - name: Install Cinnamon Desktop (Rich & Stable)
+      - name: 2. Install Cinnamon Core (Rich & Lite)
         run: |
           sudo apt-get update
-          # Installing Cinnamon (Looks like Windows/Modern Linux but works without GPU)
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
-            cinnamon-desktop-environment \
+          # Using 'cinnamon-core' instead of full environment to save 3+ minutes
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            cinnamon-core \
             xrdp dbus-x11 x11-xserver-utils \
-            mesa-utils libgl1-mesa-dri
+            gnome-terminal
           
-          # Configure XRDP to use Cinnamon
-          sudo adduser xrdp ssl-cert
-          echo "cinnamon-session" > ~/.xsession
-          sudo sed -i 's/3389/3389/g' /etc/xrdp/xrdp.ini
+          # Fix for Polkit Error (Pre-creating directory)
+          sudo mkdir -p /etc/polkit-1/localauthority/50-local.d/
           
-          # Fix Polkit (Prevents permission popups)
+          # Permission Fix
           echo "[Allow Colord all Users]
           Identity=unix-user:*
           Action=org.freedesktop.color-manager.create-device;org.freedesktop.color-manager.create-profile;org.freedesktop.color-manager.delete-device;org.freedesktop.color-manager.delete-profile;org.freedesktop.color-manager.modify-device;org.freedesktop.color-manager.modify-profile
@@ -37,23 +35,28 @@ jobs:
           ResultInactive=no
           ResultActive=yes" | sudo tee /etc/polkit-1/localauthority/50-local.d/45-allow-colord.pkla
 
+          # Configure XRDP
+          sudo adduser xrdp ssl-cert
+          echo "cinnamon-session" > ~/.xsession
+          sudo sed -i 's/3389/3389/g' /etc/xrdp/xrdp.ini
           sudo service xrdp start
-          echo "✅ Cinnamon Desktop Installed"
+          echo "✅ Desktop Environment Ready"
 
-      - name: Install VS Code & Antigravity (Chrome)
+      - name: 3. Install VS Code & Antigravity
         run: |
-          # VS Code
+          # VS Code (Background download setup)
           wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > packages.microsoft.gpg
           sudo install -D -o root -g root -m 644 packages.microsoft.gpg /etc/apt/keyrings/packages.microsoft.gpg
           echo "deb [arch=amd64,arm64,armhf signed-by=/etc/apt/keyrings/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main" | sudo tee /etc/apt/sources.list.d/vscode.list > /dev/null
+          
+          # Chrome Download
+          wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+          
+          # Install Both
           sudo apt-get update
-          sudo apt-get install -y code
+          sudo apt-get install -y code ./google-chrome-stable_current_amd64.deb
 
-          # Chrome
-          wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
-          sudo apt install -y ./google-chrome-stable_current_amd64.deb || sudo apt-get install -f -y
-
-          # Shortcuts on Desktop
+          # Create Shortcuts
           mkdir -p ~/Desktop
           cat > ~/Desktop/Antigravity.desktop <<EOF
           [Desktop Entry]
@@ -67,33 +70,36 @@ jobs:
           cp /usr/share/applications/code.desktop ~/Desktop/
           chmod +x ~/Desktop/code.desktop
 
-      - name: Setup User (runner)
+      - name: 4. Create User & Start Tunnel
         run: |
-          sudo useradd -m -s /bin/bash runner || true
+          sudo useradd -m -s /bin/bash runner
           echo "runner:Antigravity2026!" | sudo chpasswd
           sudo usermod -aG sudo runner
-
-      - name: Start Cloudflare Tunnel
-        run: |
+          
+          # Start Tunnel
           /usr/local/bin/cloudflared tunnel --url tcp://localhost:3389 > tunnel.log 2>&1 &
           
-          echo "Waiting for URL..."
-          for i in {1..30}; do
+          echo "Waiting for Link..."
+          for i in {1..20}; do
             sleep 2
             TUN=$(grep -Eo 'https://[a-zA-Z0-9-]+\.trycloudflare\.com' tunnel.log | head -1)
             if [ -n "$TUN" ]; then echo "🌐 Tunnel: $TUN"; break; fi
           done
           echo "$TUN" > tunnel_url.txt
 
-      - name: SHOW CONNECT INFO
+      - name: 5. CONNECT NOW
         run: |
           TUN=$(cat tunnel_url.txt)
           echo "==================================================="
-          echo "   RICH CINNAMON DESKTOP READY"
+          echo "   🔥 FASTEST RICH DESKTOP READY 🔥"
           echo "==================================================="
-          echo "Command: cloudflared access tcp --hostname ${TUN#https://} --url localhost:3389"
-          echo "User   : runner"
-          echo "Pass   : Antigravity2026!"
+          echo "📲 Connect via RD Client App:"
+          echo "   PC Name : localhost:3389"
+          echo "   User    : runner"
+          echo "   Pass    : Antigravity2026!"
+          echo ""
+          echo "👇 RUN THIS COMMAND IN MOBILE/PC FIRST:"
+          echo "cloudflared access tcp --hostname ${TUN#https://} --url localhost:3389"
           echo "==================================================="
 
       - name: Keep Alive
