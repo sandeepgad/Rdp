@@ -1,46 +1,100 @@
-name: CI
+name: RICH LINUX (CINNAMON - GPU FREE)
 
-
-on: [push, workflow_dispatch]
-
+on:
+  workflow_dispatch:
 
 jobs:
-
   build:
-
-
-    runs-on: windows-latest
-
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
 
     steps:
+      - name: Install Cloudflared
+        run: |
+          wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -O /tmp/cloudflared
+          chmod +x /tmp/cloudflared
+          sudo mv /tmp/cloudflared /usr/local/bin/cloudflared
 
-    - name: Download
+      - name: Install Cinnamon Desktop (Rich & Stable)
+        run: |
+          sudo apt-get update
+          # Installing Cinnamon (Looks like Windows/Modern Linux but works without GPU)
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            cinnamon-desktop-environment \
+            xrdp dbus-x11 x11-xserver-utils \
+            mesa-utils libgl1-mesa-dri
+          
+          # Configure XRDP to use Cinnamon
+          sudo adduser xrdp ssl-cert
+          echo "cinnamon-session" > ~/.xsession
+          sudo sed -i 's/3389/3389/g' /etc/xrdp/xrdp.ini
+          
+          # Fix Polkit (Prevents permission popups)
+          echo "[Allow Colord all Users]
+          Identity=unix-user:*
+          Action=org.freedesktop.color-manager.create-device;org.freedesktop.color-manager.create-profile;org.freedesktop.color-manager.delete-device;org.freedesktop.color-manager.delete-profile;org.freedesktop.color-manager.modify-device;org.freedesktop.color-manager.modify-profile
+          ResultAny=no
+          ResultInactive=no
+          ResultActive=yes" | sudo tee /etc/polkit-1/localauthority/50-local.d/45-allow-colord.pkla
 
-      run: Invoke-WebRequest https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-windows-amd64.zip -OutFile ngrok.zip
+          sudo service xrdp start
+          echo "✅ Cinnamon Desktop Installed"
 
-    - name: Extract
+      - name: Install VS Code & Antigravity (Chrome)
+        run: |
+          # VS Code
+          wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > packages.microsoft.gpg
+          sudo install -D -o root -g root -m 644 packages.microsoft.gpg /etc/apt/keyrings/packages.microsoft.gpg
+          echo "deb [arch=amd64,arm64,armhf signed-by=/etc/apt/keyrings/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main" | sudo tee /etc/apt/sources.list.d/vscode.list > /dev/null
+          sudo apt-get update
+          sudo apt-get install -y code
 
-      run: Expand-Archive ngrok.zip
+          # Chrome
+          wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+          sudo apt install -y ./google-chrome-stable_current_amd64.deb || sudo apt-get install -f -y
 
-    - name: Auth
+          # Shortcuts on Desktop
+          mkdir -p ~/Desktop
+          cat > ~/Desktop/Antigravity.desktop <<EOF
+          [Desktop Entry]
+          Version=1.0
+          Name=Google Antigravity
+          Exec=google-chrome --app=https://antigravity.google/ --no-sandbox
+          Icon=google-chrome
+          Type=Application
+          EOF
+          chmod +x ~/Desktop/Antigravity.desktop
+          cp /usr/share/applications/code.desktop ~/Desktop/
+          chmod +x ~/Desktop/code.desktop
 
-      run: .\ngrok\ngrok.exe authtoken $Env:NGROK_AUTH_TOKEN
+      - name: Setup User (runner)
+        run: |
+          sudo useradd -m -s /bin/bash runner || true
+          echo "runner:Antigravity2026!" | sudo chpasswd
+          sudo usermod -aG sudo runner
 
-      env:
+      - name: Start Cloudflare Tunnel
+        run: |
+          /usr/local/bin/cloudflared tunnel --url tcp://localhost:3389 > tunnel.log 2>&1 &
+          
+          echo "Waiting for URL..."
+          for i in {1..30}; do
+            sleep 2
+            TUN=$(grep -Eo 'https://[a-zA-Z0-9-]+\.trycloudflare\.com' tunnel.log | head -1)
+            if [ -n "$TUN" ]; then echo "🌐 Tunnel: $TUN"; break; fi
+          done
+          echo "$TUN" > tunnel_url.txt
 
-        NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
+      - name: SHOW CONNECT INFO
+        run: |
+          TUN=$(cat tunnel_url.txt)
+          echo "==================================================="
+          echo "   RICH CINNAMON DESKTOP READY"
+          echo "==================================================="
+          echo "Command: cloudflared access tcp --hostname ${TUN#https://} --url localhost:3389"
+          echo "User   : runner"
+          echo "Pass   : Antigravity2026!"
+          echo "==================================================="
 
-    - name: Enable TS
-
-      run: Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server'-name "fDenyTSConnections" -Value 0
-
-    - run: Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-
-    - run: Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "UserAuthentication" -Value 1
-
-    - run: Set-LocalUser -Name "runneradmin" -Password (ConvertTo-SecureString -AsPlainText "P@ssw0rd!" -Force)
-
-    - name: Create Tunnel
-
-      run: .\ngrok\ngrok.exe tcp 3389
-
+      - name: Keep Alive
+        run: sleep 21600
