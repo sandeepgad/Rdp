@@ -1,4 +1,4 @@
-name: FASTEST RICH DESKTOP (CINNAMON CORE)
+name: FASTEST RICH DESKTOP (SANDEEP EDITION)
 
 on:
   workflow_dispatch:
@@ -18,16 +18,16 @@ jobs:
       - name: 2. Install Cinnamon Core (Rich & Lite)
         run: |
           sudo apt-get update
-          # Using 'cinnamon-core' instead of full environment to save 3+ minutes
+          # Installing Cinnamon Core (Fast & Rich)
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
             cinnamon-core \
             xrdp dbus-x11 x11-xserver-utils \
             gnome-terminal
           
-          # Fix for Polkit Error (Pre-creating directory)
+          # Fix for Polkit Directory Error
           sudo mkdir -p /etc/polkit-1/localauthority/50-local.d/
           
-          # Permission Fix
+          # Fix Polkit Permissions
           echo "[Allow Colord all Users]
           Identity=unix-user:*
           Action=org.freedesktop.color-manager.create-device;org.freedesktop.color-manager.create-profile;org.freedesktop.color-manager.delete-device;org.freedesktop.color-manager.delete-profile;org.freedesktop.color-manager.modify-device;org.freedesktop.color-manager.modify-profile
@@ -44,7 +44,7 @@ jobs:
 
       - name: 3. Install VS Code & Antigravity
         run: |
-          # VS Code (Background download setup)
+          # VS Code
           wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > packages.microsoft.gpg
           sudo install -D -o root -g root -m 644 packages.microsoft.gpg /etc/apt/keyrings/packages.microsoft.gpg
           echo "deb [arch=amd64,arm64,armhf signed-by=/etc/apt/keyrings/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main" | sudo tee /etc/apt/sources.list.d/vscode.list > /dev/null
@@ -70,11 +70,13 @@ jobs:
           cp /usr/share/applications/code.desktop ~/Desktop/
           chmod +x ~/Desktop/code.desktop
 
-      - name: 4. Create User & Start Tunnel
+      - name: 4. Create User (sandeepgaddam) & Start Tunnel
         run: |
-          sudo useradd -m -s /bin/bash runner
-          echo "runner:Antigravity2026!" | sudo chpasswd
-          sudo usermod -aG sudo runner
+          # Creating user 'sandeepgaddam'
+          sudo useradd -m -s /bin/bash sandeepgaddam
+          # Setting password to 'sandeep'
+          echo "sandeepgaddam:sandeep" | sudo chpasswd
+          sudo usermod -aG sudo sandeepgaddam
           
           # Start Tunnel
           /usr/local/bin/cloudflared tunnel --url tcp://localhost:3389 > tunnel.log 2>&1 &
@@ -91,15 +93,15 @@ jobs:
         run: |
           TUN=$(cat tunnel_url.txt)
           echo "==================================================="
-          echo "   🔥 FASTEST RICH DESKTOP READY 🔥"
+          echo "   🔥 SANDEEP DESKTOP READY 🔥"
           echo "==================================================="
-          echo "📲 Connect via RD Client App:"
-          echo "   PC Name : localhost:3389"
-          echo "   User    : runner"
-          echo "   Pass    : Antigravity2026!"
-          echo ""
-          echo "👇 RUN THIS COMMAND IN MOBILE/PC FIRST:"
+          echo "👇 RUN THIS COMMAND FIRST:"
           echo "cloudflared access tcp --hostname ${TUN#https://} --url localhost:3389"
+          echo ""
+          echo "📲 RD Client App Details:"
+          echo "   PC Name : localhost:3389"
+          echo "   User    : sandeepgaddam"
+          echo "   Pass    : sandeep"
           echo "==================================================="
 
       - name: Keep Alive
